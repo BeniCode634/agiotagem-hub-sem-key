@@ -1,5 +1,4 @@
--- Hub Agiotagem by ghost dod (Aimbot Exunys V3 Enhanced - Anti-Cheat Optimized)
--- Fixed Rayfield loading issue, retained ESP disable fix, removed tracers, fixed teleport
+--atualizado
 local Rayfield
 local success, err = pcall(function()
     Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
