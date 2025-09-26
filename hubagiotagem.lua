@@ -1,45 +1,44 @@
 -- Hub Agiotagem by ghost dod (Aimbot Exunys V3 Enhanced - Anti-Cheat Optimized)
--- Versão com chave de ativação e novas funcionalidades
+-- Fixed Rayfield loading issue, retained ESP disable fix, removed tracers, fixed teleport
 local Rayfield
 local success, err = pcall(function()
     Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+    if not Rayfield then error("Rayfield não inicializado corretamente") end
 end)
 
 if not success then
     warn("Erro ao carregar Rayfield: " .. err)
     game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "Erro",
-        Text = "Falha ao carregar Rayfield. Verifique seu executor ou conexão.",
-        Duration = 5
-    })
-    return
-end
-
--- Verificar ID do jogo e chave de ativação
-local Key = "KEY112301491248DODI" -- Chave fixa
-if game.PlaceId ~= 125761045780459 or not Key or Key ~= "KEY112301491248DODI" then
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "Erro",
-        Text = "Chave inválida ou jogo incorreto. Use KEY112301491248DODI no jogo ID 125761045780459.",
-        Duration = 5
+        Title = "Erro Crítico",
+        Text = "Falha ao carregar Rayfield. Verifique sua conexão ou executor. Tente novamente ou use um executor compatível.",
+        Duration = 10
     })
     return
 end
 
 local Window = Rayfield:CreateWindow({
-    Name = "Hub Agiotagem",
+    Name = "Hub Agiotagem ",
     LoadingTitle = "Carregando Hub Agiotagem",
-    LoadingSubtitle = "Versão 2025 Anti-Cheat",
+    LoadingSubtitle = "Versão 1.0 EM TESTE",
     ConfigurationSaving = {Enabled = false},
     Discord = {Enabled = false},
-    KeySystem = false
+    KeySystem = true, -- Ativado o sistema de key
+    KeySettings = {
+        Title = "Chave de Autenticação",
+        Subtitle = "Insira a chave para acessar o hub",
+        Note = "Entre em nosso discord e pegue a key e coloque aqui link do discord https://discord.gg/bPqUnxs32S ",
+        FileName = "AgiotagemKey",
+        SaveKey = true,
+        GrabKeyFromSite = false, -- Desativado para usar a key fixa
+        Key = "DOCHEATS1230214194" -- Key fixa definida
+    }
 })
 
 local Players, RunService, UserInputService, Workspace, TweenService = game:GetService("Players"), game:GetService("RunService"), game:GetService("UserInputService"), game:GetService("Workspace"), game:GetService("TweenService")
 local player, camera = Players.LocalPlayer, Workspace.CurrentCamera
 
 -- Variáveis globais
-local ESPEnabled, ESPColor, ShowHealth, ShowDistance, ShowTracers, ShowBoxes, ShowSkeletons, ESPRainbow = false, Color3.fromRGB(255, 0, 0), false, false, false, false, false, false
+local ESPEnabled, ESPColor, ShowHealth, ShowDistance, ShowBoxes, ShowSkeletons, ESPRainbow = false, Color3.fromRGB(255, 0, 0), false, false, false, false, false
 local ESPs, FlyEnabled, NoclipEnabled, GodmodeEnabled, WalkSpeedEnabled, SpeedHackEnabled = {}, false, false, false, false, false
 local AimbotEnabled, AutoShootEnabled, AimbotFOV, WalkSpeedValue, FlySpeedValue, SpeedValue = false, false, 90, 16, 30, 1.5
 local TeleportTarget, DebugMode = nil, false
@@ -49,7 +48,7 @@ local function debugLog(message)
     if DebugMode then print("[Debug] " .. message) end
 end
 
--- Fly (otimizado para anti-cheat)
+-- Fly
 local flyConnection
 local keys = {w = false, s = false, a = false, d = false, space = false, leftControl = false}
 local function startFly()
@@ -69,7 +68,10 @@ local function startFly()
                 if move.Magnitude > 0 then root.Velocity = root.Velocity + (move.Unit * FlySpeedValue * dt) end
             end)
         end
-    else if flyConnection then flyConnection:Disconnect() end if player.Character and player.Character:FindFirstChild("Humanoid") then player.Character.Humanoid.PlatformStand = false end end
+    else
+        if flyConnection then flyConnection:Disconnect() end
+        if player.Character and player.Character:FindFirstChild("Humanoid") then player.Character.Humanoid.PlatformStand = false end
+    end
 end
 
 UserInputService.InputBegan:Connect(function(input, gp)
@@ -98,13 +100,13 @@ local function toggleNoclip(val)
     else if noclipConn then noclipConn:Disconnect() end if player.Character then for _, p in pairs(player.Character:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = true end end end end
 end
 
--- WalkSpeed e SpeedHack (otimizado para anti-cheat)
+-- WalkSpeed e SpeedHack
 local wsConn, speedConn
 local function toggleWalkSpeed(val)
     WalkSpeedEnabled = val
     if val then if player.Character and player.Character:FindFirstChild("Humanoid") then
         local hum = player.Character.Humanoid
-        hum.WalkSpeed = math.clamp(WalkSpeedValue, 16, 25) -- Limite para evitar detecção
+        hum.WalkSpeed = math.clamp(WalkSpeedValue, 16, 25)
         wsConn = RunService.Heartbeat:Connect(function() if hum.WalkSpeed ~= math.clamp(WalkSpeedValue, 16, 25) then hum.WalkSpeed = math.clamp(WalkSpeedValue, 16, 25) end end)
     end else if wsConn then wsConn:Disconnect() end if player.Character and player.Character:FindFirstChild("Humanoid") then player.Character.Humanoid.WalkSpeed = 16 end end
 end
@@ -116,7 +118,7 @@ local function toggleSpeedHack(val)
             if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                 local root = player.Character.HumanoidRootPart
                 local moveDir = root.Velocity.Unit
-                if moveDir.Magnitude > 0 then root.Velocity = moveDir * (16 * math.clamp(SpeedValue, 1, 1.5)) end -- Limite de 1.5x
+                if moveDir.Magnitude > 0 then root.Velocity = moveDir * (16 * math.clamp(SpeedValue, 1, 1.5)) end
             end
         end)
     else if speedConn then speedConn:Disconnect() end end
@@ -137,7 +139,7 @@ local function toggleGodmode(val)
     end
 end
 
--- ESP
+-- ESP (fixed disable, no tracers)
 local function createESP(plr)
     if plr.Character and plr ~= player then
         local char = plr.Character
@@ -177,49 +179,65 @@ local function createESP(plr)
             distL.Text, distL.TextColor3 = "", Color3.new(1, 1, 0)
             distL.TextScaled, distL.Font = true, Enum.Font.SourceSans
             distL.Parent = bb
-            local tracer = Drawing.new("Line")
-            tracer.From, tracer.To = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y), Vector2.new(0, 0)
-            tracer.Color, tracer.Thickness, tracer.Transparency, tracer.Visible = ESPColor, 2, 1, ShowTracers
             local box = Drawing.new("Square")
-            box.Thickness, box.Visible = 1, ShowBoxes
+            box.Thickness = 1
             local skeleton = {}
             if ShowSkeletons then
-                for _, part in pairs({"Head", "UpperTorso", "LowerTorso", "LeftUpperArm", "LeftLowerArm", "RightUpperArm", "RightLowerArm", "LeftUpperLeg", "LeftLowerLeg", "RightUpperLeg", "RightLowerLeg"}) do
+                local parts = {
+                    "Head", "UpperTorso", "LowerTorso", "LeftUpperArm", "LeftLowerArm",
+                    "RightUpperArm", "RightLowerArm", "LeftUpperLeg", "LeftLowerLeg",
+                    "RightUpperLeg", "RightLowerLeg"
+                }
+                for _, part in pairs(parts) do
                     skeleton[part] = Drawing.new("Line")
                     skeleton[part].Thickness, skeleton[part].Transparency = 1, 1
+                    skeleton[part].Color = ESPColor
                 end
             end
-            ESPs[plr] = {hl = hl, bb = bb, toolL = toolL, healthL = healthL, distL = distL, hum = hum, tracer = tracer, box = box, skeleton = skeleton}
+            ESPs[plr] = {hl = hl, bb = bb, toolL = toolL, healthL = healthL, distL = distL, hum = hum, box = box, skeleton = skeleton}
         end
     end
 end
 
 local function updateESP(plr)
-    if ESPs[plr] and plr.Character then
-        local char, root = plr.Character, plr.Character.HumanoidRootPart
+    if ESPs[plr] and plr.Character and ESPEnabled then
+        local char, root = plr.Character, plr.Character:FindFirstChild("HumanoidRootPart")
+        if not root then return end
         local tool = char:FindFirstChildOfClass("Tool")
         ESPs[plr].toolL.Text = tool and tool.Name or "Sem Tool"
         if ShowHealth and ESPs[plr].hum then ESPs[plr].healthL.Text = "HP: " .. math.floor(ESPs[plr].hum.Health) else ESPs[plr].healthL.Text = "" end
         if ShowDistance and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             ESPs[plr].distL.Text = math.floor((player.Character.HumanoidRootPart.Position - root.Position).Magnitude) .. "m"
         else ESPs[plr].distL.Text = "" end
-        if ShowTracers and ESPs[plr].tracer then
-            local pos, onScreen = camera:WorldToViewportPoint(root.Position)
-            if onScreen then ESPs[plr].tracer.To = Vector2.new(pos.X, pos.Y) ESPs[plr].tracer.Visible = true else ESPs[plr].tracer.Visible = false end
-        end
         if ShowBoxes and ESPs[plr].box then
             local top, bottom = camera:WorldToViewportPoint((root.CFrame * CFrame.new(0, 3, 0)).Position), camera:WorldToViewportPoint((root.CFrame * CFrame.new(0, -3, 0)).Position)
-            ESPs[plr].box.Size = Vector2.new(50, top.Y - bottom.Y)
-            ESPs[plr].box.Position = Vector2.new(top.X - 25, bottom.Y)
-            ESPs[plr].box.Color = ESPColor
-            ESPs[plr].box.Visible = true
+            if top and bottom and top.Y > bottom.Y then
+                ESPs[plr].box.Size = Vector2.new(50, math.max(10, top.Y - bottom.Y))
+                ESPs[plr].box.Position = Vector2.new(top.X - 25, bottom.Y)
+                ESPs[plr].box.Color = ESPColor
+                ESPs[plr].box.Visible = true
+            else
+                ESPs[plr].box.Visible = false
+            end
         end
         if ShowSkeletons and ESPs[plr].skeleton then
             for part, line in pairs(ESPs[plr].skeleton) do
                 local p = char:FindFirstChild(part)
                 if p and p:IsA("BasePart") then
                     local pos, onScreen = camera:WorldToViewportPoint(p.Position)
-                    if onScreen then line.To = Vector2.new(pos.X, pos.Y) line.Visible = true line.Color = ESPColor else line.Visible = false end
+                    if onScreen then
+                        line.To = Vector2.new(pos.X, pos.Y)
+                        line.Visible = true
+                        if part == "Head" and char:FindFirstChild("UpperTorso") then
+                            local torsoPos, onScreenTorso = camera:WorldToViewportPoint(char.UpperTorso.Position)
+                            if onScreen and onScreenTorso then line.From = Vector2.new(torsoPos.X, torsoPos.Y) end
+                        elseif part == "UpperTorso" and char:FindFirstChild("LowerTorso") then
+                            local lowerPos, onScreenLower = camera:WorldToViewportPoint(char.LowerTorso.Position)
+                            if onScreen and onScreenLower then line.From = Vector2.new(lowerPos.X, lowerPos.Y) end
+                        end
+                    else
+                        line.Visible = false
+                    end
                 end
             end
         end
@@ -228,32 +246,45 @@ end
 
 local function removeESP(plr)
     if ESPs[plr] then
-        ESPs[plr].hl:Destroy()
-        ESPs[plr].bb:Destroy()
-        if ESPs[plr].tracer then ESPs[plr].tracer:Remove() end
-        if ESPs[plr].box then ESPs[plr].box:Remove() end
-        if ESPs[plr].skeleton then for _, line in pairs(ESPs[plr].skeleton) do if line then line:Remove() end end end
-        ESPs[plr] = nil
+        pcall(function()
+            ESPs[plr].hl:Destroy()
+            ESPs[plr].bb:Destroy()
+            if ESPs[plr].box then ESPs[plr].box:Remove() end
+            if ESPs[plr].skeleton then
+                for _, line in pairs(ESPs[plr].skeleton) do
+                    if line then line:Remove() end
+                end
+            end
+            ESPs[plr] = nil
+        end)
     end
 end
 
 local function toggleESP(val)
     ESPEnabled = val
-    if val then for _, plr in pairs(Players:GetPlayers()) do if plr ~= player then createESP(plr) end end
-    else for plr in pairs(ESPs) do removeESP(plr) end end
+    if not val then
+        for plr in pairs(ESPs) do removeESP(plr) end
+    else
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= player and not ESPs[plr] and plr.Character then createESP(plr) end
+        end
+    end
 end
 
 local function updateESPColor()
-    if ESPRainbow then
+    if ESPEnabled and ESPRainbow then
         ESPColor = Color3.fromHSV(tick() % 5 / 5, 1, 1)
-    else
-        ESPColor = Color3.fromRGB(255, 0, 0) -- Padrão se não for rainbow
+    elseif ESPEnabled then
+        ESPColor = Color3.fromRGB(255, 0, 0)
     end
     for plr, esp in pairs(ESPs) do
         if esp.hl then esp.hl.FillColor = ESPColor end
-        if esp.tracer then esp.tracer.Color = ESPColor end
-        if esp.box then esp.box.Color = ESPColor end
-        if esp.skeleton then for _, line in pairs(esp.skeleton) do line.Color = ESPColor end end
+        if esp.box and esp.box.Visible then esp.box.Color = ESPColor end
+        if esp.skeleton then
+            for _, line in pairs(esp.skeleton) do
+                if line.Visible then line.Color = ESPColor end
+            end
+        end
     end
 end
 
@@ -332,11 +363,48 @@ local function LoadAimbot()
     end)
 end
 
--- Teleport (novo com input de nome)
-local function teleportToPlayerByName(name)
+-- Teleport with player selection (fixed)
+local function getPlayerList()
+    local playersList = {}
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            table.insert(playersList, plr.Name)
+        end
+    end
+    return playersList
+end
+
+local function teleportToPlayer(name)
     local target = Players:FindFirstChild(name)
     if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        player.Character.HumanoidRootPart.CFrame = target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 2, 0)
+        local targetRoot = target.Character:WaitForChild("HumanoidRootPart", 2) -- Aguarda até 2 segundos
+        local playerRoot = player.Character:WaitForChild("HumanoidRootPart", 2) -- Aguarda até 2 segundos
+        if targetRoot and playerRoot then
+            task.wait(0.1) -- Pequeno atraso para garantir que o personagem esteja pronto
+            local success, err = pcall(function()
+                playerRoot.CFrame = CFrame.new(targetRoot.Position + Vector3.new(0, 2, 0))
+            end)
+            if success then
+                game:GetService("StarterGui"):SetCore("SendNotification", {
+                    Title = "Sucesso",
+                    Text = "Teletransportado para " .. name,
+                    Duration = 3
+                })
+            else
+                game:GetService("StarterGui"):SetCore("SendNotification", {
+                    Title = "Erro",
+                    Text = "Falha ao teletransportar. Tente novamente. (Erro: " .. (err or "Desconhecido") .. ")",
+                    Duration = 5
+                })
+                debugLog("Teleport Error: " .. (err or "Desconhecido"))
+            end
+        else
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "Erro",
+                Text = "Jogador ou personagem não carregado corretamente.",
+                Duration = 5
+            })
+        end
     else
         game:GetService("StarterGui"):SetCore("SendNotification", {
             Title = "Erro",
@@ -346,35 +414,6 @@ local function teleportToPlayerByName(name)
     end
 end
 
--- Kill Aura
-local killAuraConn
-local function toggleKillAura(val)
-    if val then
-        killAuraConn = RunService.Heartbeat:Connect(function()
-            for _, v in pairs(Players:GetPlayers()) do
-                if v ~= player and v.Character and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
-                    local distance = (player.Character.HumanoidRootPart.Position - v.Character.HumanoidRootPart.Position).Magnitude
-                    if distance < 10 then
-                        v.Character.Humanoid.Health = 0
-                    end
-                end
-            end
-        end)
-    else if killAuraConn then killAuraConn:Disconnect() end end
-end
-
--- Auto Farm (exemplo genérico)
-local autoFarmConn
-local function toggleAutoFarm(val)
-    if val then
-        autoFarmConn = RunService.Heartbeat:Connect(function()
-            -- Substitua por lógica específica do jogo (ex.: coletar itens)
-            local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-            if root then root.CFrame = root.CFrame + Vector3.new(0, 0, -1) end
-        end)
-    else if autoFarmConn then autoFarmConn:Disconnect() end end
-end
-
 -- Reset Character
 local function resetCharacter()
     if player.Character then
@@ -382,17 +421,20 @@ local function resetCharacter()
     end
 end
 
--- Loop de atualização
+-- Update Loop
 RunService.Heartbeat:Connect(function()
     if ESPEnabled then
         for _, plr in pairs(Players:GetPlayers()) do
-            if plr ~= player then updateESP(plr) end
+            if plr ~= player then
+                if not ESPs[plr] and plr.Character then createESP(plr) end
+                updateESP(plr)
+            end
         end
         updateESPColor()
     end
 end)
 
--- Eventos
+-- Events
 Players.PlayerAdded:Connect(function(plr)
     plr.CharacterAdded:Connect(function()
         task.wait(0.5)
@@ -411,6 +453,11 @@ player.CharacterAdded:Connect(function()
     if NoclipEnabled then toggleNoclip(true) end
     if WalkSpeedEnabled then toggleWalkSpeed(true) end
     if SpeedHackEnabled then toggleSpeedHack(true) end
+    if ESPEnabled then
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= player and not ESPs[plr] and plr.Character then createESP(plr) end
+        end
+    end
 end)
 
 -- Tabs
@@ -435,7 +482,6 @@ ESPTab:CreateColorPicker({Name = "Cor ESP", Color = Color3.fromRGB(255, 0, 0), F
 ESPTab:CreateToggle({Name = "ESP Rainbow", CurrentValue = false, Flag = "ESP_Rainbow", Callback = function(v) ESPRainbow = v updateESPColor() end})
 ESPTab:CreateToggle({Name = "Mostrar Saúde", CurrentValue = false, Flag = "Health_Toggle", Callback = function(v) ShowHealth = v end})
 ESPTab:CreateToggle({Name = "Mostrar Distância", CurrentValue = false, Flag = "Dist_Toggle", Callback = function(v) ShowDistance = v end})
-ESPTab:CreateToggle({Name = "Tracers", CurrentValue = false, Flag = "Tracers_Toggle", Callback = function(v) ShowTracers = v end})
 ESPTab:CreateToggle({Name = "Caixas 2D", CurrentValue = false, Flag = "Boxes_Toggle", Callback = function(v) ShowBoxes = v end})
 ESPTab:CreateToggle({Name = "Skeletons", CurrentValue = false, Flag = "Skeletons_Toggle", Callback = function(v) ShowSkeletons = v end})
 
@@ -450,10 +496,22 @@ AimbotTab:CreateLabel("Use Botão Direito para lockar alvo.")
 AimbotTab:CreateToggle({Name = "Debug Mode", CurrentValue = false, Flag = "Debug_Toggle", Callback = function(v) DebugMode = v end})
 
 -- Misc Tab
-MiscTab:CreateInput({Name = "Teleport to Player", PlaceholderText = "Digite o nome do jogador", RemoveTextAfterFocusLost = false, Callback = function(text) teleportToPlayerByName(text) end})
-MiscTab:CreateToggle({Name = "Kill Aura", CurrentValue = false, Flag = "Kill_Aura", Callback = function(v) toggleKillAura(v) end})
-MiscTab:CreateToggle({Name = "Auto Farm", CurrentValue = false, Flag = "Auto_Farm", Callback = function(v) toggleAutoFarm(v) end})
+MiscTab:CreateDropdown({Name = "Teleport to Player", Options = getPlayerList(), CurrentOption = "", Flag = "Teleport_Player", Callback = function(v) teleportToPlayer(v) end})
 MiscTab:CreateButton({Name = "Reset Character", Callback = function() resetCharacter() end})
+
+-- Update player list for dropdown
+Players.PlayerAdded:Connect(function()
+    local dropdown = MiscTab:GetDropdown("Teleport to Player")
+    if dropdown then
+        dropdown:SetOptions(getPlayerList())
+    end
+end)
+Players.PlayerRemoving:Connect(function()
+    local dropdown = MiscTab:GetDropdown("Teleport to Player")
+    if dropdown then
+        dropdown:SetOptions(getPlayerList())
+    end
+end)
 
 -- Cleanup
 MainTab:CreateButton({Name = "Fechar Menu", Callback = function()
@@ -466,11 +524,10 @@ MainTab:CreateButton({Name = "Fechar Menu", Callback = function()
     if wsConn then wsConn:Disconnect() end
     if speedConn then speedConn:Disconnect() end
     if godConn then godConn:Disconnect() end
-    if killAuraConn then killAuraConn:Disconnect() end
-    if autoFarmConn then autoFarmConn:Disconnect() end
+    toggleESP(false) -- Ensure ESP is fully disabled on cleanup
 end})
 
-Rayfield:Notify({Title = "Hub Agiotagem Carregado", Content = "Aimbot, Fly, Noclip, Godmode, ESP, Teleport e mais funcionando!", Duration = 5, Image = 4483362458})
+Rayfield:Notify({Title = "Hub Agiotagem Carregado", Content = "Aimbot, Fly, Noclip, Godmode, ESP, Teleport funcionando!", Duration = 5, Image = 4483362458})
 
 local PlayerGui = player:WaitForChild("PlayerGui")
 local loadingGui = Instance.new("ScreenGui")
