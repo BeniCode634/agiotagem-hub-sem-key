@@ -1,3 +1,5 @@
+-- Hub Agiotagem by ghost dod (Aimbot Exunys V3 Enhanced - Anti-Cheat Optimized)
+-- Versão com chave de ativação e novas funcionalidades
 local Rayfield
 local success, err = pcall(function()
     Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -13,11 +15,12 @@ if not success then
     return
 end
 
--- Verificar ID do jogo
-if game.PlaceId ~= 125761045780459 then
+-- Verificar ID do jogo e chave de ativação
+local Key = "KEY112301491248DODI" -- Chave fixa
+if game.PlaceId ~= 125761045780459 or not Key or Key ~= "KEY112301491248DODI" then
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "Erro",
-        Text = "Este script só funciona no jogo com ID 125761045780459.",
+        Text = "Chave inválida ou jogo incorreto. Use KEY112301491248DODI no jogo ID 125761045780459.",
         Duration = 5
     })
     return
@@ -26,7 +29,7 @@ end
 local Window = Rayfield:CreateWindow({
     Name = "Hub Agiotagem",
     LoadingTitle = "Carregando Hub Agiotagem",
-    LoadingSubtitle = "Versão 2025 Anti-Ban",
+    LoadingSubtitle = "Versão 2025 Anti-Cheat",
     ConfigurationSaving = {Enabled = false},
     Discord = {Enabled = false},
     KeySystem = false
@@ -36,143 +39,17 @@ local Players, RunService, UserInputService, Workspace, TweenService = game:GetS
 local player, camera = Players.LocalPlayer, Workspace.CurrentCamera
 
 -- Variáveis globais
-local ESPEnabled, ESPColor, ShowHealth, ShowDistance, ShowTracers, ShowBoxes, ShowSkeletons = false, Color3.fromRGB(255, 0, 0), false, false, false, false, false
+local ESPEnabled, ESPColor, ShowHealth, ShowDistance, ShowTracers, ShowBoxes, ShowSkeletons, ESPRainbow = false, Color3.fromRGB(255, 0, 0), false, false, false, false, false, false
 local ESPs, FlyEnabled, NoclipEnabled, GodmodeEnabled, WalkSpeedEnabled, SpeedHackEnabled = {}, false, false, false, false, false
-local AimbotEnabled, AutoShootEnabled, AimbotFOV, WalkSpeedValue, FlySpeedValue, SpeedValue = false, false, 90, 16, 50, 1
-local TeleportTarget, ScriptUsers = nil, {}
-local DebugMode = false
+local AimbotEnabled, AutoShootEnabled, AimbotFOV, WalkSpeedValue, FlySpeedValue, SpeedValue = false, false, 90, 16, 30, 1.5
+local TeleportTarget, DebugMode = nil, false
 
 -- Função de debug
 local function debugLog(message)
     if DebugMode then print("[Debug] " .. message) end
 end
 
--- Texto Rainbow (menor e para todos os usuários do script)
-local function createRainbowText(character)
-    if character and character:FindFirstChild("HumanoidRootPart") then
-        local root = character.HumanoidRootPart
-        local bb = Instance.new("BillboardGui")
-        bb.Name = "ScriptUserIndicator"
-        bb.Adornee = root
-        bb.Size = UDim2.new(0, 100, 0, 25) -- Tamanho reduzido
-        bb.StudsOffset = Vector3.new(0, 2, 0)
-        bb.AlwaysOnTop = true
-        bb.Parent = root
-
-        local textLabel = Instance.new("TextLabel")
-        textLabel.Size = UDim2.new(1, 0, 1, 0)
-        textLabel.BackgroundTransparency = 1
-        textLabel.Text = "Mesmo Script"
-        textLabel.TextColor3 = Color3.fromHSV(tick() % 5 / 5, 1, 1)
-        textLabel.TextScaled = true
-        textLabel.Font = Enum.Font.SourceSans
-        textLabel.Parent = bb
-
-        RunService.Heartbeat:Connect(function()
-            if bb.Parent then
-                textLabel.TextColor3 = Color3.fromHSV(tick() % 5 / 5, 1, 1)
-            end
-        end)
-        return bb
-    end
-end
-
-local function markLocalPlayer()
-    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        player.Character.HumanoidRootPart:SetAttribute("UsingScript", true)
-        createRainbowText(player.Character)
-    end
-end
-
-local function checkScriptUsers()
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            if plr.Character.HumanoidRootPart:GetAttribute("UsingScript") and not ScriptUsers[plr] then
-                ScriptUsers[plr] = createRainbowText(plr.Character)
-            elseif ScriptUsers[plr] and not plr.Character.HumanoidRootPart:GetAttribute("UsingScript") then
-                ScriptUsers[plr]:Destroy()
-                ScriptUsers[plr] = nil
-            end
-        end
-    end
-end
-
--- Aimbot Enhanced
-local Aimbot = {
-    Settings = {Enabled = false, TeamCheck = false, AliveCheck = true, WallCheck = false, LockMode = 1, LockPart = "Head", TriggerKey = Enum.UserInputType.MouseButton2, Toggle = false},
-    FOVSettings = {Enabled = true, Visible = true, Radius = 90, NumSides = 60, Thickness = 1, Transparency = 1, Filled = false, Color = Color3.fromRGB(255, 255, 255), LockedColor = Color3.fromRGB(255, 150, 150)}
-}
-local FOVCircle, FOVCircleOutline = Drawing.new("Circle"), Drawing.new("Circle")
-local AimbotLocked, RequiredDistance, Running = nil, 2000, false
-local ServiceConnections = {}
-
-local function CancelLock()
-    AimbotLocked = nil
-    pcall(function() FOVCircle.Color = Aimbot.FOVSettings.Color end)
-    pcall(function() UserInputService.MouseDeltaSensitivity = 1 end)
-end
-
-local function GetClosestPlayer()
-    if not AimbotLocked then
-        RequiredDistance = Aimbot.FOVSettings.Enabled and Aimbot.FOVSettings.Radius or 2000
-        for _, v in pairs(Players:GetPlayers()) do
-            if v == player or table.find(Aimbot.Blacklisted or {}, v.Name) then continue end
-            local char = v.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if char and hum and char:FindFirstChild(Aimbot.Settings.LockPart) and hum.Health > 0 then
-                local pos = char[Aimbot.Settings.LockPart].Position
-                local vec, onScreen = camera:WorldToViewportPoint(pos)
-                local dist = (UserInputService:GetMouseLocation() - Vector2.new(vec.X, vec.Y)).Magnitude
-                if onScreen and dist < RequiredDistance then RequiredDistance, AimbotLocked = dist, v end
-            end
-        end
-    elseif AimbotLocked and AimbotLocked.Character and AimbotLocked.Character:FindFirstChild(Aimbot.Settings.LockPart) then
-        local dist = (UserInputService:GetMouseLocation() - Vector2.new(camera:WorldToViewportPoint(AimbotLocked.Character[Aimbot.Settings.LockPart].Position).X, camera:WorldToViewportPoint(AimbotLocked.Character[Aimbot.Settings.LockPart].Position).Y)).Magnitude
-        if dist > RequiredDistance then CancelLock() end
-    else CancelLock() end
-end
-
-local function LoadAimbot()
-    ServiceConnections.RenderStepped = RunService.RenderStepped:Connect(function()
-        local success, err = pcall(function()
-            if Aimbot.Settings.Enabled and Aimbot.FOVSettings.Enabled then
-                FOVCircle.Radius, FOVCircle.NumSides, FOVCircle.Thickness, FOVCircle.Transparency, FOVCircle.Filled = Aimbot.FOVSettings.Radius, Aimbot.FOVSettings.NumSides, Aimbot.FOVSettings.Thickness, Aimbot.FOVSettings.Transparency, Aimbot.FOVSettings.Filled
-                FOVCircleOutline.Radius, FOVCircleOutline.NumSides, FOVCircleOutline.Thickness, FOVCircleOutline.Transparency, FOVCircleOutline.Filled = Aimbot.FOVSettings.Radius, Aimbot.FOVSettings.NumSides, Aimbot.FOVSettings.Thickness + 1, Aimbot.FOVSettings.Transparency, Aimbot.FOVSettings.Filled
-                FOVCircle.Color = AimbotLocked and Aimbot.FOVSettings.LockedColor or Aimbot.FOVSettings.Color
-                FOVCircleOutline.Color = Color3.fromRGB(0, 0, 0)
-                FOVCircle.Position, FOVCircleOutline.Position = UserInputService:GetMouseLocation(), UserInputService:GetMouseLocation()
-                FOVCircle.Visible, FOVCircleOutline.Visible = true, true
-            else FOVCircle.Visible, FOVCircleOutline.Visible = false, false end
-            if Running and Aimbot.Settings.Enabled then
-                GetClosestPlayer()
-                if AimbotLocked and AimbotLocked.Character and AimbotLocked.Character:FindFirstChild(Aimbot.Settings.LockPart) then
-                    local targetPos = AimbotLocked.Character[Aimbot.Settings.LockPart].Position
-                    if Aimbot.Settings.LockMode == 1 then
-                        camera.CFrame = CFrame.new(camera.CFrame.Position, targetPos)
-                    end
-                    if AutoShootEnabled then
-                        pcall(function() game:GetService("VirtualInputManager"):SendMouseButtonEvent(0, 0, 0, true, game) task.wait(0.1) game:GetService("VirtualInputManager"):SendMouseButtonEvent(0, 0, 0, false, game) end)
-                    end
-                end
-            end
-        end)
-        if not success and DebugMode then debugLog("Aimbot Error: " .. err) end
-    end)
-    ServiceConnections.InputBegan = UserInputService.InputBegan:Connect(function(Input)
-        if Typing then return end
-        if (Input.UserInputType == Aimbot.Settings.TriggerKey) or (Input.UserInputType == Enum.UserInputType.Keyboard and Input.KeyCode == Aimbot.Settings.TriggerKey) then
-            if Aimbot.Settings.Toggle then Running = not Running if not Running then CancelLock() end else Running = true end
-        end
-    end)
-    ServiceConnections.InputEnded = UserInputService.InputEnded:Connect(function(Input)
-        if Aimbot.Settings.Toggle or Typing then return end
-        if (Input.UserInputType == Aimbot.Settings.TriggerKey) or (Input.UserInputType == Enum.UserInputType.Keyboard and Input.KeyCode == Aimbot.Settings.TriggerKey) then
-            Running = false CancelLock()
-        end
-    end)
-end
-
--- Fly
+-- Fly (otimizado para anti-cheat)
 local flyConnection
 local keys = {w = false, s = false, a = false, d = false, space = false, leftControl = false}
 local function startFly()
@@ -182,14 +59,14 @@ local function startFly()
             char.Humanoid.PlatformStand = true
             flyConnection = RunService.RenderStepped:Connect(function(dt)
                 local root = char.HumanoidRootPart
-                local move = Vector3.new()
-                if keys.w then move = move + camera.CFrame.LookVector end
-                if keys.s then move = move - camera.CFrame.LookVector end
-                if keys.a then move = move - camera.CFrame.RightVector end
-                if keys.d then move = move + camera.CFrame.RightVector end
-                if keys.space then move = move + Vector3.new(0, 1, 0) end
-                if keys.leftControl then move = move + Vector3.new(0, -1, 0) end
-                if move.Magnitude > 0 then root.CFrame = root.CFrame + (move.Unit * FlySpeedValue * dt) end
+                local move = Vector3.new(0, 0, 0)
+                if keys.w then move = move + camera.CFrame.LookVector * 0.5 end
+                if keys.s then move = move - camera.CFrame.LookVector * 0.5 end
+                if keys.a then move = move - camera.CFrame.RightVector * 0.5 end
+                if keys.d then move = move + camera.CFrame.RightVector * 0.5 end
+                if keys.space then move = move + Vector3.new(0, 0.5, 0) end
+                if keys.leftControl then move = move + Vector3.new(0, -0.5, 0) end
+                if move.Magnitude > 0 then root.Velocity = root.Velocity + (move.Unit * FlySpeedValue * dt) end
             end)
         end
     else if flyConnection then flyConnection:Disconnect() end if player.Character and player.Character:FindFirstChild("Humanoid") then player.Character.Humanoid.PlatformStand = false end end
@@ -221,14 +98,14 @@ local function toggleNoclip(val)
     else if noclipConn then noclipConn:Disconnect() end if player.Character then for _, p in pairs(player.Character:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = true end end end end
 end
 
--- WalkSpeed e SpeedHack
+-- WalkSpeed e SpeedHack (otimizado para anti-cheat)
 local wsConn, speedConn
 local function toggleWalkSpeed(val)
     WalkSpeedEnabled = val
     if val then if player.Character and player.Character:FindFirstChild("Humanoid") then
         local hum = player.Character.Humanoid
-        hum.WalkSpeed = WalkSpeedValue
-        wsConn = RunService.Heartbeat:Connect(function() if hum.WalkSpeed ~= WalkSpeedValue then hum.WalkSpeed = WalkSpeedValue end end)
+        hum.WalkSpeed = math.clamp(WalkSpeedValue, 16, 25) -- Limite para evitar detecção
+        wsConn = RunService.Heartbeat:Connect(function() if hum.WalkSpeed ~= math.clamp(WalkSpeedValue, 16, 25) then hum.WalkSpeed = math.clamp(WalkSpeedValue, 16, 25) end end)
     end else if wsConn then wsConn:Disconnect() end if player.Character and player.Character:FindFirstChild("Humanoid") then player.Character.Humanoid.WalkSpeed = 16 end end
 end
 
@@ -239,7 +116,7 @@ local function toggleSpeedHack(val)
             if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                 local root = player.Character.HumanoidRootPart
                 local moveDir = root.Velocity.Unit
-                if moveDir.Magnitude > 0 then root.Velocity = moveDir * (16 * SpeedValue) end
+                if moveDir.Magnitude > 0 then root.Velocity = moveDir * (16 * math.clamp(SpeedValue, 1, 1.5)) end -- Limite de 1.5x
             end
         end)
     else if speedConn then speedConn:Disconnect() end end
@@ -366,27 +243,153 @@ local function toggleESP(val)
     else for plr in pairs(ESPs) do removeESP(plr) end end
 end
 
-local function updateESPColor(c)
-    ESPColor = c
+local function updateESPColor()
+    if ESPRainbow then
+        ESPColor = Color3.fromHSV(tick() % 5 / 5, 1, 1)
+    else
+        ESPColor = Color3.fromRGB(255, 0, 0) -- Padrão se não for rainbow
+    end
     for plr, esp in pairs(ESPs) do
-        if esp.hl then esp.hl.FillColor = c end
-        if esp.tracer then esp.tracer.Color = c end
-        if esp.box then esp.box.Color = c end
-        if esp.skeleton then for _, line in pairs(esp.skeleton) do line.Color = c end end
+        if esp.hl then esp.hl.FillColor = ESPColor end
+        if esp.tracer then esp.tracer.Color = ESPColor end
+        if esp.box then esp.box.Color = ESPColor end
+        if esp.skeleton then for _, line in pairs(esp.skeleton) do line.Color = ESPColor end end
     end
 end
 
--- Teleport (não corrigido conforme solicitado)
-local function teleportToPlayer(plr)
-    if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        player.Character.HumanoidRootPart.CFrame = plr.Character.HumanoidRootPart.CFrame * CFrame.new(0, 2, 0)
+-- Aimbot Enhanced
+local Aimbot = {
+    Settings = {Enabled = false, TeamCheck = false, AliveCheck = true, WallCheck = false, LockMode = 1, LockPart = "Head", TriggerKey = Enum.UserInputType.MouseButton2, Toggle = false},
+    FOVSettings = {Enabled = true, Visible = true, Radius = 90, NumSides = 60, Thickness = 1, Transparency = 1, Filled = false, Color = Color3.fromRGB(255, 255, 255), LockedColor = Color3.fromRGB(255, 150, 150)}
+}
+local FOVCircle, FOVCircleOutline = Drawing.new("Circle"), Drawing.new("Circle")
+local AimbotLocked, RequiredDistance, Running = nil, 2000, false
+local ServiceConnections = {}
+
+local function CancelLock()
+    AimbotLocked = nil
+    pcall(function() FOVCircle.Color = Aimbot.FOVSettings.Color end)
+    pcall(function() UserInputService.MouseDeltaSensitivity = 1 end)
+end
+
+local function GetClosestPlayer()
+    if not AimbotLocked then
+        RequiredDistance = Aimbot.FOVSettings.Enabled and Aimbot.FOVSettings.Radius or 2000
+        for _, v in pairs(Players:GetPlayers()) do
+            if v == player or table.find(Aimbot.Blacklisted or {}, v.Name) then continue end
+            local char = v.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if char and hum and char:FindFirstChild(Aimbot.Settings.LockPart) and hum.Health > 0 then
+                local pos = char[Aimbot.Settings.LockPart].Position
+                local vec, onScreen = camera:WorldToViewportPoint(pos)
+                local dist = (UserInputService:GetMouseLocation() - Vector2.new(vec.X, vec.Y)).Magnitude
+                if onScreen and dist < RequiredDistance then RequiredDistance, AimbotLocked = dist, v end
+            end
+        end
+    elseif AimbotLocked and AimbotLocked.Character and AimbotLocked.Character:FindFirstChild(Aimbot.Settings.LockPart) then
+        local dist = (UserInputService:GetMouseLocation() - Vector2.new(camera:WorldToViewportPoint(AimbotLocked.Character[Aimbot.Settings.LockPart].Position).X, camera:WorldToViewportPoint(AimbotLocked.Character[Aimbot.Settings.LockPart].Position).Y)).Magnitude
+        if dist > RequiredDistance then CancelLock() end
+    else CancelLock() end
+end
+
+local function LoadAimbot()
+    ServiceConnections.RenderStepped = RunService.RenderStepped:Connect(function()
+        local success, err = pcall(function()
+            if Aimbot.Settings.Enabled and Aimbot.FOVSettings.Enabled then
+                FOVCircle.Radius, FOVCircle.NumSides, FOVCircle.Thickness, FOVCircle.Transparency, FOVCircle.Filled = Aimbot.FOVSettings.Radius, Aimbot.FOVSettings.NumSides, Aimbot.FOVSettings.Thickness, Aimbot.FOVSettings.Transparency, Aimbot.FOVSettings.Filled
+                FOVCircleOutline.Radius, FOVCircleOutline.NumSides, FOVCircleOutline.Thickness, FOVCircleOutline.Transparency, FOVCircleOutline.Filled = Aimbot.FOVSettings.Radius, Aimbot.FOVSettings.NumSides, Aimbot.FOVSettings.Thickness + 1, Aimbot.FOVSettings.Transparency, Aimbot.FOVSettings.Filled
+                FOVCircle.Color = AimbotLocked and Aimbot.FOVSettings.LockedColor or Aimbot.FOVSettings.Color
+                FOVCircleOutline.Color = Color3.fromRGB(0, 0, 0)
+                FOVCircle.Position, FOVCircleOutline.Position = UserInputService:GetMouseLocation(), UserInputService:GetMouseLocation()
+                FOVCircle.Visible, FOVCircleOutline.Visible = true, true
+            else FOVCircle.Visible, FOVCircleOutline.Visible = false, false end
+            if Running and Aimbot.Settings.Enabled then
+                GetClosestPlayer()
+                if AimbotLocked and AimbotLocked.Character and AimbotLocked.Character:FindFirstChild(Aimbot.Settings.LockPart) then
+                    local targetPos = AimbotLocked.Character[Aimbot.Settings.LockPart].Position
+                    if Aimbot.Settings.LockMode == 1 then
+                        camera.CFrame = CFrame.new(camera.CFrame.Position, targetPos)
+                    end
+                    if AutoShootEnabled then
+                        pcall(function() game:GetService("VirtualInputManager"):SendMouseButtonEvent(0, 0, 0, true, game) task.wait(0.1) game:GetService("VirtualInputManager"):SendMouseButtonEvent(0, 0, 0, false, game) end)
+                    end
+                end
+            end
+        end)
+        if not success and DebugMode then debugLog("Aimbot Error: " .. err) end
+    end)
+    ServiceConnections.InputBegan = UserInputService.InputBegan:Connect(function(Input)
+        if Typing then return end
+        if (Input.UserInputType == Aimbot.Settings.TriggerKey) or (Input.UserInputType == Enum.UserInputType.Keyboard and Input.KeyCode == Aimbot.Settings.TriggerKey) then
+            if Aimbot.Settings.Toggle then Running = not Running if not Running then CancelLock() end else Running = true end
+        end
+    end)
+    ServiceConnections.InputEnded = UserInputService.InputEnded:Connect(function(Input)
+        if Aimbot.Settings.Toggle or Typing then return end
+        if (Input.UserInputType == Aimbot.Settings.TriggerKey) or (Input.UserInputType == Enum.UserInputType.Keyboard and Input.KeyCode == Aimbot.Settings.TriggerKey) then
+            Running = false CancelLock()
+        end
+    end)
+end
+
+-- Teleport (novo com input de nome)
+local function teleportToPlayerByName(name)
+    local target = Players:FindFirstChild(name)
+    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        player.Character.HumanoidRootPart.CFrame = target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 2, 0)
+    else
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Erro",
+            Text = "Jogador não encontrado ou não carregado.",
+            Duration = 5
+        })
+    end
+end
+
+-- Kill Aura
+local killAuraConn
+local function toggleKillAura(val)
+    if val then
+        killAuraConn = RunService.Heartbeat:Connect(function()
+            for _, v in pairs(Players:GetPlayers()) do
+                if v ~= player and v.Character and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
+                    local distance = (player.Character.HumanoidRootPart.Position - v.Character.HumanoidRootPart.Position).Magnitude
+                    if distance < 10 then
+                        v.Character.Humanoid.Health = 0
+                    end
+                end
+            end
+        end)
+    else if killAuraConn then killAuraConn:Disconnect() end end
+end
+
+-- Auto Farm (exemplo genérico)
+local autoFarmConn
+local function toggleAutoFarm(val)
+    if val then
+        autoFarmConn = RunService.Heartbeat:Connect(function()
+            -- Substitua por lógica específica do jogo (ex.: coletar itens)
+            local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if root then root.CFrame = root.CFrame + Vector3.new(0, 0, -1) end
+        end)
+    else if autoFarmConn then autoFarmConn:Disconnect() end end
+end
+
+-- Reset Character
+local function resetCharacter()
+    if player.Character then
+        player.Character:BreakJoints()
     end
 end
 
 -- Loop de atualização
 RunService.Heartbeat:Connect(function()
-    if ESPEnabled then for _, plr in pairs(Players:GetPlayers()) do if plr ~= player then updateESP(plr) end end end
-    checkScriptUsers()
+    if ESPEnabled then
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= player then updateESP(plr) end
+        end
+        updateESPColor()
+    end
 end)
 
 -- Eventos
@@ -394,18 +397,15 @@ Players.PlayerAdded:Connect(function(plr)
     plr.CharacterAdded:Connect(function()
         task.wait(0.5)
         if ESPEnabled then createESP(plr) end
-        checkScriptUsers()
     end)
 end)
 
 Players.PlayerRemoving:Connect(function(plr)
     removeESP(plr)
-    if ScriptUsers[plr] then ScriptUsers[plr]:Destroy() ScriptUsers[plr] = nil end
 end)
 
 player.CharacterAdded:Connect(function()
     task.wait(0.5)
-    markLocalPlayer()
     if GodmodeEnabled then toggleGodmode(true) end
     if FlyEnabled then startFly() end
     if NoclipEnabled then toggleNoclip(true) end
@@ -421,17 +421,18 @@ local MiscTab = Window:CreateTab("Misc", 4483362458)
 
 -- Main Tab
 MainTab:CreateToggle({Name = "Fly", CurrentValue = false, Flag = "Fly_Toggle", Callback = function(v) FlyEnabled = v startFly() end})
-MainTab:CreateSlider({Name = "Fly Speed", Range = {16, 100}, Increment = 1, Suffix = "Speed", CurrentValue = 50, Flag = "Fly_Speed", Callback = function(v) FlySpeedValue = v end})
+MainTab:CreateSlider({Name = "Fly Speed", Range = {16, 30}, Increment = 1, Suffix = "Speed", CurrentValue = 30, Flag = "Fly_Speed", Callback = function(v) FlySpeedValue = v end})
 MainTab:CreateToggle({Name = "Noclip", CurrentValue = false, Flag = "Noclip_Toggle", Callback = function(v) toggleNoclip(v) end})
 MainTab:CreateToggle({Name = "Godmode", CurrentValue = false, Flag = "God_Toggle", Callback = function(v) toggleGodmode(v) end})
 MainTab:CreateToggle({Name = "WalkSpeed", CurrentValue = false, Flag = "WS_Toggle", Callback = function(v) toggleWalkSpeed(v) end})
-MainTab:CreateSlider({Name = "Walk Speed", Range = {16, 50}, Increment = 1, Suffix = "Speed", CurrentValue = 16, Flag = "WS_Value", Callback = function(v) WalkSpeedValue = v end})
+MainTab:CreateSlider({Name = "Walk Speed", Range = {16, 25}, Increment = 1, Suffix = "Speed", CurrentValue = 16, Flag = "WS_Value", Callback = function(v) WalkSpeedValue = v end})
 MainTab:CreateToggle({Name = "Speed Hack", CurrentValue = false, Flag = "Speed_Toggle", Callback = function(v) SpeedHackEnabled = v toggleSpeedHack(v) end})
-MainTab:CreateSlider({Name = "Speed Multiplier", Range = {1, 5}, Increment = 0.1, Suffix = "x", CurrentValue = 1, Flag = "Speed_Value", Callback = function(v) SpeedValue = v end})
+MainTab:CreateSlider({Name = "Speed Multiplier", Range = {1, 1.5}, Increment = 0.1, Suffix = "x", CurrentValue = 1, Flag = "Speed_Value", Callback = function(v) SpeedValue = v end})
 
 -- ESP Tab
 ESPTab:CreateToggle({Name = "Ativar ESP", CurrentValue = false, Flag = "ESP_Toggle", Callback = function(v) toggleESP(v) end})
-ESPTab:CreateColorPicker({Name = "Cor ESP", Color = Color3.fromRGB(255, 0, 0), Flag = "ESP_Color", Callback = function(c) updateESPColor(c) end})
+ESPTab:CreateColorPicker({Name = "Cor ESP", Color = Color3.fromRGB(255, 0, 0), Flag = "ESP_Color", Callback = function(c) if not ESPRainbow then ESPColor = c end end})
+ESPTab:CreateToggle({Name = "ESP Rainbow", CurrentValue = false, Flag = "ESP_Rainbow", Callback = function(v) ESPRainbow = v updateESPColor() end})
 ESPTab:CreateToggle({Name = "Mostrar Saúde", CurrentValue = false, Flag = "Health_Toggle", Callback = function(v) ShowHealth = v end})
 ESPTab:CreateToggle({Name = "Mostrar Distância", CurrentValue = false, Flag = "Dist_Toggle", Callback = function(v) ShowDistance = v end})
 ESPTab:CreateToggle({Name = "Tracers", CurrentValue = false, Flag = "Tracers_Toggle", Callback = function(v) ShowTracers = v end})
@@ -449,11 +450,10 @@ AimbotTab:CreateLabel("Use Botão Direito para lockar alvo.")
 AimbotTab:CreateToggle({Name = "Debug Mode", CurrentValue = false, Flag = "Debug_Toggle", Callback = function(v) DebugMode = v end})
 
 -- Misc Tab
-MiscTab:CreateButton({Name = "Teleport to Player", Callback = function()
-    local plrList = {}
-    for _, plr in pairs(Players:GetPlayers()) do if plr ~= player then table.insert(plrList, plr.Name) end end
-    Rayfield:CreateDropdown({Name = "Selecione Jogador", Options = plrList, CurrentOption = plrList[1], Flag = "Teleport_Target", Callback = function(v) TeleportTarget = Players:FindFirstChild(v) if TeleportTarget then teleportToPlayer(TeleportTarget) end end})
-end})
+MiscTab:CreateInput({Name = "Teleport to Player", PlaceholderText = "Digite o nome do jogador", RemoveTextAfterFocusLost = false, Callback = function(text) teleportToPlayerByName(text) end})
+MiscTab:CreateToggle({Name = "Kill Aura", CurrentValue = false, Flag = "Kill_Aura", Callback = function(v) toggleKillAura(v) end})
+MiscTab:CreateToggle({Name = "Auto Farm", CurrentValue = false, Flag = "Auto_Farm", Callback = function(v) toggleAutoFarm(v) end})
+MiscTab:CreateButton({Name = "Reset Character", Callback = function() resetCharacter() end})
 
 -- Cleanup
 MainTab:CreateButton({Name = "Fechar Menu", Callback = function()
@@ -461,15 +461,16 @@ MainTab:CreateButton({Name = "Fechar Menu", Callback = function()
     for _, conn in pairs(ServiceConnections) do pcall(function() conn:Disconnect() end) end
     if FOVCircle then FOVCircle:Remove() end
     if FOVCircleOutline then FOVCircleOutline:Remove() end
-    for plr, gui in pairs(ScriptUsers) do if gui then gui:Destroy() end end
     if flyConnection then flyConnection:Disconnect() end
     if noclipConn then noclipConn:Disconnect() end
     if wsConn then wsConn:Disconnect() end
     if speedConn then speedConn:Disconnect() end
     if godConn then godConn:Disconnect() end
+    if killAuraConn then killAuraConn:Disconnect() end
+    if autoFarmConn then autoFarmConn:Disconnect() end
 end})
 
-Rayfield:Notify({Title = "Hub Agiotagem Carregado", Content = "Aimbot, Fly, Noclip, Godmode, ESP e Teleport funcionando!", Duration = 5, Image = 4483362458})
+Rayfield:Notify({Title = "Hub Agiotagem Carregado", Content = "Aimbot, Fly, Noclip, Godmode, ESP, Teleport e mais funcionando!", Duration = 5, Image = 4483362458})
 
 local PlayerGui = player:WaitForChild("PlayerGui")
 local loadingGui = Instance.new("ScreenGui")
@@ -510,5 +511,4 @@ spawn(function()
     statusLabel.Text = "Status: Pronto!"
     task.wait(1)
     loadingGui:Destroy()
-    markLocalPlayer()
 end)
